@@ -1,0 +1,75 @@
+//- Applications page (admin)
+//- Rendered with: applications (array of { date, applicationId, shelterId, petId, petType, status })
+- const title = "Applications - New Home Animal Rescue"
+- const cssFile = "applications.css"
+- const activePage = "applications"
+- const scriptFile = "applications.js"
+- const statuses = ["Unprocessed", "Pending", "Approved", "Rejected"]
+include partials/header
+	main.applications-main
+		h1 Submitted Applications
+		.applications-card
+			table.applications-table
+				thead
+					tr
+						th Date
+						th Application ID
+						th Shelter ID
+						th Pet ID
+						th Pet Type
+						th Status
+				tbody#applicationsTableBody
+					each app in applications
+						tr
+							td= app.date
+							td #{app.applicationId} #[button.view-btn(data-id=app.applicationId) View]
+							td= app.shelterId
+							td= app.petId
+							td= app.petType
+							td(class="status-" + app.status)
+								select.status-select(data-id=app.applicationId)
+									each status in statuses
+										option(value=status selected=(status === app.status))= status
+					else
+						tr
+							td(colspan="6") No applications have been submitted yet.
+		.application-details-section
+			.applications-card
+				#applicationDetails
+					//- applications.js fills in the spans and shows this card when a View button is clicked
+					#detailsCard.details-card(hidden)
+						table.details-layout
+							tr
+								td.details-col
+									h4 Application Info
+									p #[strong Date Submitted:] #[span#detailDate]
+									p #[strong Status:] #[span#detailStatus]
+									p #[strong Pet ID:] #[span#detailPetId]
+									p #[strong Shelter ID:] #[span#detailShelterId]
+								td.details-col
+									h4 Pet Requested
+									table.pet-requested-layout
+										tr
+											td.pet-text
+												p #[strong Name:] #[span#detailPetName]
+												p #[strong Type:] #[span#detailPetType]
+												p #[strong Breed:] #[span#detailPetBreed]
+												p #[strong Age:] #[span#detailPetAge]
+												p #[strong Days at Shelter:] #[span#detailPetDays]
+											td.pet-image-cell
+												img#detailPetImage.pet-image(alt="")
+							tr
+								td.details-col(colspan="2")
+									h4 Applicant Information
+									p #[strong Name:] #[span#detailName]
+									p #[strong Email:] #[span#detailEmail]
+									p #[strong Phone:] #[span#detailPhone]
+									p #[strong Address:] #[span#detailAddress]
+									h4 Household Details
+									p #[strong Number of Residents:] #[span#detailResidents]
+									p #[strong Current Pets:] #[span#detailCurrentPets]
+									p #[strong Experience Level:] #[span#detailExperience]
+									p #[strong Pet Location:] #[span#detailLocation]
+									h4 Support
+									p #[strong Donation:] $#[span#detailDonation]
+	include partials/footer

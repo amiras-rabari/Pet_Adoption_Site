@@ -1,0 +1,38 @@
+//- Pet Details page
+//- Rendered with either: pet + shelter (normal case), or errorMessage (missing/invalid IDs)
+- const title = "New Home - Pet Details"
+- const cssFile = "pet.css"
+- const activePage = "browse"
+include partials/header
+	section#petDetailsContainer
+		if errorMessage
+			p.error= errorMessage
+		else
+			-
+				const processingFee = shelter.processingFee || 30;
+				const totalFee = Number(pet.adoptionFee) + Number(processingFee);
+				const daysAtShelter = (pet.daysAtShelter != null) ? pet.daysAtShelter : "N/A";
+				const applyUrl = "/apply?" + new URLSearchParams({
+					petId: pet.id, petName: pet.name, petType: pet.type, petBreed: pet.breed,
+					adoptionFee: pet.adoptionFee, processingFee: processingFee, shelterId: shelter.id
+				});
+			.pet-detail-card
+				img.pet-detail-image(src="/" + pet.image alt=pet.name)
+				h2= pet.name
+				p #{pet.age} year old #{pet.breed} (#{pet.type})
+				p #[strong Health:] #{pet.health}
+				if pet.traits.length
+					ul
+						each trait in pet.traits
+							li= trait
+				else
+					br
+				p #[strong Days at Shelter:] #{daysAtShelter}
+				hr
+				p #[strong Adoption Fee:] $#{pet.adoptionFee}
+				p #[strong Processing Fee:] $#{processingFee}
+				p #[strong Total (before taxes):] $#{totalFee}
+				a.apply-button(href=applyUrl) Apply to Adopt this Pet
+	if !errorMessage
+		a.back-link(href="/browse?shelterId=" + shelter.id) Back to Browsing
+	include partials/footer

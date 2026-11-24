@@ -1,0 +1,24 @@
+//- Browse Pets page
+//- Rendered with: shelters (array of { id, name }), selectedShelterId (optional, from ?shelterId=)
+- const title = "New Home - Browse"
+- const cssFile = "browse.css"
+- const activePage = "browse"
+- const scriptFile = "browse.js"
+include partials/header
+	section.shelter-select
+		h2 Select a Shelter
+		select#shelterDropdown
+			option(value="") -- No Shelter Selected --
+			each shelter in shelters
+				option(value=shelter.id selected=(shelter.id === selectedShelterId))= shelter.name
+	//- Pet type buttons: hidden until a shelter is selected
+	section#petTypeBar.pet-type-bar.hidden
+		button(data-type="All") All
+		button(data-type="Cat") Cats
+		button(data-type="Dog") Dogs
+		button(data-type="Bird") Birds
+		button(data-type="Reptile") Reptiles
+		button(data-type="Other") Other
+	//- browse.js fills this with pet cards when a shelter is selected
+	section#petContainer.pet-grid
+	include partials/footer

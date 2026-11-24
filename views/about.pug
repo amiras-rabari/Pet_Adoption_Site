@@ -1,0 +1,21 @@
+//- About Us page
+//- Rendered with: mission, teamDescription, team. the contents of data/aboutData.json from server
+- const title = "New Home - About"
+- const cssFile = "about.css"
+- const activePage = "about"
+include partials/header
+	section.about-mission
+		h2 Our Mission
+		p#mission-text= mission
+	section.about-team
+		img#team-img(src="/images/aboutUs.jpg" alt="About New Home Animal Rescue")
+		h2 Our Team
+		p#team-description= teamDescription
+		#team-grid.team-grid
+			each member in team
+				.team-card
+					h3= member.name
+					p #[strong Role:] #{member.role}
+					p #[strong Experience:] #{member.experience}
+					p #[strong Qualifications:] #{member.qualifications}
+	include partials/footer

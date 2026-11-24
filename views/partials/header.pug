@@ -1,0 +1,25 @@
+//- Variables expected: title, cssFile, activePage
+-
+	const navLinks = [
+		{ key: "home", href: "/", label: "Home" },
+		{ key: "browse", href: "/browse", label: "Browse Pets" },
+		{ key: "shelters", href: "/admin/shelters", label: "Shelters" },
+		{ key: "applications", href: "/admin/applications", label: "Applications" },
+		{ key: "about", href: "/about", label: "About Us" }
+	];
+doctype html
+html(lang="en")
+	head
+		meta(charset="UTF-8")
+		title= title
+		link(rel="stylesheet" href="/css/styles.css")
+		link(rel="stylesheet" href="/css/" + cssFile)
+	body
+		nav.main-nav
+			ul
+				each link in navLinks
+					li
+						a(href=link.href class=(link.key === activePage ? "active" : undefined))= link.label
+		header.banner
+			img.banner-img(src="/images/banner.jpg" alt="New Home Animal Rescue Banner")
+		yield
