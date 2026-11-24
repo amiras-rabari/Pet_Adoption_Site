@@ -4,6 +4,9 @@ const path = require('path');
 const url = require('url');
 
 const pug = require('pug');
+const express = require('express');
+const app = express();
+
 // Submitted applications
 let applications = []; // None so far
 
@@ -24,6 +27,48 @@ for (let i = 0; i < files.length; i++) {
 // Load the About Us page data (mission, teamDescription, team) once upon startup
 const aboutData = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'aboutData.json'), 'utf-8'));
 
+// ---------- Express setup ----------
+// Tell Express to render .pug files from the views folder
+app.set('view engine', 'pug');
+app.set('views', path.join(__dirname, 'views'));
+
+// Middleware (runs on every request, before the routes)
+app.use(express.json());                          //  parse JSON request bodies into req.body
+app.use(express.urlencoded({ extended: true }));  //  parse HTML form submissions into req.body
+app.use(express.static(path.join(__dirname, 'public'))); //  serve CSS/JS/images from public/
+
+// ---------- Routes ----------
+app.get('/', (req, res) => {
+    res.render('index');
+});
+
+// About Us page: inject the mission, team description and team members
+app.get('/about', (req, res) => {
+    res.render('about', aboutData);
+});
+
+
+// Browse page: inject the shelter names for the dropdown.
+// selectedShelterId (optional) re-selects a shelter when coming "Back to Browsing".
+app.get('/browse', (req, res) => {
+    res.render('browse', {
+        shelters: shelters.map(shelter => ({ id: shelter.id, name: shelter.name })),
+        selectedShelterId: req.query.shelterId
+    });
+});
+
+// API: one shelter's full data (?id=sId), or a summary list of all shelters
+app.get('/shelters', (req, res) => {
+    if (req.query.id) {
+        const shelter = shelters.find(shelter => (shelter.id === req.query.id));
+        if (!shelter)
+            return res.status(404).send('Shelter Not Found');
+        return res.json(shelter);
+    }
+    res.json(shelters.map(shelter => ({
+        id: shelter.id, name: shelter.name, city: shelter.city, processingFee: shelter.processingFee
+    })));
+});
 
 // Return the Content-type based on the file type. This is needed for static file serving.
 function getMimeType(file) {
@@ -91,6 +136,7 @@ function findPet(shelterId, petId) {
         return undefined;
 }
 
+/*
 // Handle all incoming endpoint requests
 function handleRequest(req, res) {
     const parsed = url.parse(req.url, true); // true parses query string
@@ -257,7 +303,8 @@ function handleRequest(req, res) {
     // Handle anything else as an error
     res.writeHead(404).end('Not Found');
 }
-
+*/
 // Start the server
-http.createServer(handleRequest).listen(3000);
-console.log('Adoption Company Server running on http://localhost:3000');
+app.listen(3000, () => {
+    console.log('Adoption Company Server running on http://localhost:3000');
+});

@@ -43,7 +43,7 @@ function resetPage() {
 
 // Return a histogram object of { petType: count }
 function getPetTypes(pets) {
-    const types = { Cat:0, Dog:0, Bird:0, Reptile:0, Other:0 };
+    const types = { Cat: 0, Dog: 0, Bird: 0, Reptile: 0, Other: 0 };
     pets.forEach(p => {
         types[p.type]++;
     });
