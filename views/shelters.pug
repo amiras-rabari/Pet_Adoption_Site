@@ -1,0 +1,30 @@
+//- Shelters page (admin)
+//- Rendered with: shelters (array of { id, name, city, processingFee, petCount })
+- const title = "Shelters - New Home Animal Rescue"
+- const cssFile = "shelters.css"
+- const activePage = "shelters"
+- const scriptFile = "shelters.js"
+include partials/header
+	main.shelters-main
+		h1 Shelters
+		//- List of all shelters: each name links to its own page, with a remove button beside it
+		section.shelters-card
+			h2 All Shelters
+			ul#shelterList.shelter-list
+				each shelter in shelters
+					li.shelter-item
+						a.shelter-link(href="/admin/shelters/" + shelter.id)= shelter.name
+						span.shelter-meta #{shelter.city} | #{shelter.petCount} pets
+						button.remove-btn(type="button" data-id=shelter.id data-name=shelter.name title="Remove " + shelter.name)
+							img(src="/images/remove.svg" alt="Remove")
+				else
+					li.empty-message No shelters yet. Add one below.
+		//- Form for adding a new shelter (handled by shelters.js)
+		section.shelters-card
+			h2 Add a New Shelter
+			form#addShelterForm.add-shelter-form
+				input#shelterName(type="text" placeholder="Shelter Name")
+				input#shelterCity(type="text" placeholder="City")
+				input#shelterFee(type="number" placeholder="Processing Fee ($)" min="0")
+				button#addShelterBtn(type="submit") Add Shelter
+	include partials/footer

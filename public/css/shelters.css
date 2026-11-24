@@ -1,0 +1,120 @@
+/* Shelters page (admin) */
+.shelters-main {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 20px;
+}
+.shelters-main h1 {
+    text-align: center;
+    color: #ea6608dd;
+    margin-bottom: 20px;
+}
+
+
+/* White card containers (same look as the Applications page) */
+.shelters-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    padding: 20px 25px;
+    margin-bottom: 25px;
+}
+.shelters-card h2 {
+    margin-top: 0;
+    color: #A9724B;
+}
+
+
+/* List of shelters */
+.shelter-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.shelter-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee;
+    transition: background 0.2s ease;
+}
+.shelter-item:last-child {
+    border-bottom: none;
+}
+.shelter-item:hover {
+    background: #fdf3ec;
+}
+.shelter-link {
+    font-weight: bold;
+    color: #2c2c2c;
+    text-decoration: none;
+}
+.shelter-link:hover {
+    color: #ea6608dd;
+    text-decoration: underline;
+}
+.shelter-meta {
+    color: #777;
+    font-size: 0.9rem;
+    margin-left: auto; /* push the city/pet count and remove button to the right */
+}
+.empty-message {
+    color: #777;
+    font-style: italic;
+}
+
+
+/* Remove (trash) button beside each shelter */
+.remove-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.1s ease;
+}
+.remove-btn img {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+.remove-btn:hover {
+    background: #f8d7da;
+    transform: scale(1.15);
+}
+
+
+/* Add Shelter form */
+.add-shelter-form input {
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 15px;
+    box-sizing: border-box;
+}
+.add-shelter-form input:focus {
+    border-color: #A9724B;
+    outline: none;
+}
+.add-shelter-form button {
+    display: block;
+    width: 100%;
+    max-width: 300px;
+    margin: 8px auto 0;
+    padding: 12px 20px;
+    font-weight: bold;
+    font-size: 1rem;
+    color: white;
+    background: #A9724B;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.1s ease;
+}
+.add-shelter-form button:hover {
+    background: #ea6608dd;
+    transform: scale(1.03);
+}

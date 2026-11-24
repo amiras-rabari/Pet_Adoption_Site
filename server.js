@@ -7,18 +7,46 @@ const app = express();
 // Submitted applications
 let applications = []; // None so far
 
+// File locations for the stored data
+const SHELTERS_DIR = path.join(__dirname, 'data', 'shelters');
+const NEXT_IDS_FILE = path.join(__dirname, 'data', 'nextIDs.json');
+
 // Load the shelter data upon startup
 let shelters = [];
+const shelterFiles = {}; // Which file each shelter is stored in: { shelterId: fileName }
 
-// Get all the files in the shelters directory (assumed to be JSON)
-const files = fs.readdirSync(path.join(__dirname, 'data/shelters'));
-
-// Read each .json file and extract/add the JSON data to the shelters array
+// Read each .json file in the shelters folder and add its shelter to the shelters array
+const files = fs.readdirSync(SHELTERS_DIR);
 for (let i = 0; i < files.length; i++) {
     if (files[i].endsWith('.json')) {
-        const data = fs.readFileSync(path.join(__dirname, 'data/shelters', files[i]), 'utf-8');
-        shelters.push(JSON.parse(data));
+        const shelter = JSON.parse(fs.readFileSync(path.join(SHELTERS_DIR, files[i]), 'utf-8'));
+        shelters.push(shelter);
+        shelterFiles[shelter.id] = files[i];
     }
+}
+
+// Load the next available IDs: { nextShelterId, nextPetId }
+const nextIDs = JSON.parse(fs.readFileSync(NEXT_IDS_FILE, 'utf-8'));
+
+// Save the next available IDs back to their file
+function saveNextIDs() {
+    fs.writeFileSync(NEXT_IDS_FILE, JSON.stringify(nextIDs, null, 2));
+}
+
+// Save one shelter (including its pets) back to its own .json file
+// writeFileSync It finishes writing before the response is sent, so 
+// location.reload() is guaranteed to see the new shelter.
+function saveShelter(shelter) {
+    fs.writeFileSync(path.join(SHELTERS_DIR, shelterFiles[shelter.id]), JSON.stringify(shelter, null, 2));
+}
+
+// Find and return the pet with the given Id from the given shelter Id
+function findPet(shelterId, petId) {
+    const shelter = shelters.find(shelter => (shelter.id === shelterId));
+    if (shelter)
+        return shelter.pets.find(pet => (pet.id === petId));
+    else
+        return undefined;
 }
 
 // Load the About Us page data (mission, teamDescription, team) once upon startup
@@ -162,17 +190,71 @@ app.put('/admin/applications-update', (req, res) => {
     res.send('Application ' + applicationId + ' updated');
 });
 
+// Shelters page (admin) or shelter list API, depending on the Accept header
+app.get('/admin/shelters', (req, res) => {
+    const shelterSummaries = shelters.map(shelter => ({
+        id: shelter.id,
+        name: shelter.name,
+        city: shelter.city,
+        processingFee: shelter.processingFee,
+        petCount: shelter.pets.length
+    }));
+
+    res.format({
+        'text/html': () => res.render('shelters', { shelters: shelterSummaries }),
+        'application/json': () => res.json({ count: shelterSummaries.length, shelters: shelterSummaries }),
+        default: () => res.status(406).send('Not Acceptable. Request text/html or application/json.')
+    });
+});
 
 
-// Find and return the pet with the given Id from the given shelter Id
-function findPet(shelterId, petId) {
-    const shelter = shelters.find(shelter => (shelter.id === shelterId));
-    if (shelter)
-        return shelter.pets.find(pet => (pet.id === petId));
-    else
-        return undefined;
-}
+// Add a new shelter. JSON body: { name, city, processingFee }
+app.post('/admin/shelters', (req, res) => {
+    // Read the values as trimmed text (String() also guards against non-text values)
+    const body = req.body || {};
+    const name = String(body.name ?? '').trim();
+    const city = String(body.city ?? '').trim();
+    const feeText = String(body.processingFee ?? '').trim();
+    const fee = Number(feeText);
 
+    // All three values are required, and the fee must be a number that is 0 or more
+    if (!name || !city || !feeText || !Number.isFinite(fee) || fee < 0)
+        return res.status(400).send('A name, city and processing fee (0 or more) are required.');
+
+    // Use (and then increase) the next shelter ID stored in nextIDs.json
+    const newShelter = {
+        id: 's' + nextIDs.nextShelterId,
+        name: name,
+        city: city,
+        processingFee: fee,
+        pets: []
+    };
+    nextIDs.nextShelterId++;
+    saveNextIDs();
+
+    // Store the new shelter in its own file named after its ID (e.g. s6.json)
+    shelterFiles[newShelter.id] = newShelter.id + '.json';
+    saveShelter(newShelter);
+    shelters.push(newShelter);
+
+    res.status(201).json(newShelter);
+});
+
+// Delete a shelter (and all its pets). The shelter ID is a route parameter: /admin/shelters/s6
+app.delete('/admin/shelters/:sID', (req, res) => {
+    const shelterId = req.params.sID;
+    const index = shelters.findIndex(shelter => (shelter.id === shelterId));
+    if (index === -1)
+        return res.status(404).send('Shelter not found. Invalid shelter ID.');
+
+    // Delete the shelter's .json file (force: no error if the file is already gone)
+    fs.rmSync(path.join(SHELTERS_DIR, shelterFiles[shelterId]), { force: true });
+    delete shelterFiles[shelterId];
+
+    // Remove it from the shelters array
+    const removedShelter = shelters.splice(index, 1)[0];
+    res.send('Shelter "' + removedShelter.name + '" was deleted successfully.');
+});
 
 // Start the server
 app.listen(3000, () => {
