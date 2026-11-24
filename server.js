@@ -1,9 +1,6 @@
-const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const url = require('url');
 
-const pug = require('pug');
 const express = require('express');
 const app = express();
 
@@ -38,7 +35,7 @@ app.use(express.urlencoded({ extended: true }));  //  parse HTML form submission
 app.use(express.static(path.join(__dirname, 'public'))); //  serve CSS/JS/images from public/
 
 // ---------- Routes ----------
-app.get('/', (req, res) => {
+app.get(['/', '/home', '/index.html'], (req, res) => {
     res.render('index');
 });
 
@@ -70,62 +67,102 @@ app.get('/shelters', (req, res) => {
     })));
 });
 
-// Return the Content-type based on the file type. This is needed for static file serving.
-function getMimeType(file) {
-    const ext = path.extname(file).toLowerCase();
-    switch (ext) {
-        case '.js': return 'application/javascript';
-        case '.css': return 'text/css';
-        case '.jpg': return 'image/jpeg';
-        case '.png': return 'image/png';
-        case '.svg': return 'image/svg+xml';
-        case '.json': return 'application/json';
-        case '.html': return 'text/html';
-        default: return 'text/plain';
+
+// Pet details page. Both petId and shelterId are required query parameters.
+app.get('/details', (req, res) => {
+    const { petId, shelterId } = req.query;
+    if (!petId || !shelterId) {
+        return res.status(400).render('pet', { errorMessage: 'Missing pet ID and/or shelter ID.' })
     }
-}
 
-// This function serves all the static files 
-function serveStatic(filePath, res) {
-    fs.readFile(filePath, (err, data) => {
-        if (err) {
-            res.writeHead(404, { 'Content-Type': 'text/plain' });
-            res.end('File not found');
-        } else {
-            res.writeHead(200, { 'Content-Type': getMimeType(filePath) });
-            res.end(data);
-        }
-    });
-}
-
-// Render a PUG template from the views folder and send it as an HTML response.
-// view: the template name without .pug (e.g. "index")
-// data: an object whose properties become variables inside the template
-// statusCode: HTTP status to send (defaults to 200 OK)
-function renderPage(res, view, data = {}, statusCode = 200) {
-    try {
-        const html = pug.renderFile(path.join(__dirname, 'views', view + '.pug'), data);
-        res.writeHead(statusCode, { 'Content-Type': 'text/html' });
-        res.end(html);
-    } catch (err) {
-        // Pug errors give file + line number
-        console.error(err);
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        res.end('Error rendering page');
+    const shelter = shelters.find(shelter => (shelter.id == shelterId));
+    const pet = findPet(shelterId, petId);
+    if (!pet) {
+        return res.status(404).render('pet', { errorMessage: 'Pet not found. Either the shelter ID or pet ID is invalid.' });
     }
-}
 
-// Helper function to read a request body
-function readRequestBody(req, callback) {
-    let body = ""
-    req.on('data', (chunk) => {
-        body += chunk;
-    })
-    // Once the entire body is ready, process the request
-    req.on('end', () => {
-        callback(body);
+    res.render('pet', { pet, shelter });
+});
+
+// Adoption application page. All pet info arrives as query parameters from the pet page's Apply link.
+app.get('/apply', (req, res) => {
+    const { petId, petName, petType, petBreed, adoptionFee, processingFee, shelterId } = req.query;
+    res.render('apply', { petId, petName, petType, petBreed, adoptionFee, processingFee, shelterId });
+});
+
+// Receive a submitted application (JSON body already parsed by express.json())
+app.post('/submit-application', (req, res) => {
+    const application = req.body;
+    if (!application || Object.keys(application).length === 0)
+        return res.status(400).send('Invalid application data');
+
+    // Add the current date/time, a unique ID and a status
+    application.date = new Date().toLocaleString('en-CA', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
     });
-}
+    application.applicationId = "a" + (applications.length + 1); // ok since applications are never removed
+    application.status = "Unprocessed";
+    applications.push(application);
+
+    res.send('Application received');
+});
+
+// Applications page (admin): inject a summary of each application for the table rows
+app.get('/admin/applications', (req, res) => {
+    const appSummaries = applications.map(app => {
+        const pet = findPet(app.shelterId, app.petId);
+        return {
+            date: app.date,
+            applicationId: app.applicationId,
+            shelterId: app.shelterId,
+            petId: app.petId,
+            petType: pet ? pet.type : 'Unknown',
+            status: app.status
+        };
+    });
+    res.render('applications', { applications: appSummaries });
+});
+
+// API: one pet's data (used by applications.js for the details card)
+app.get('/shelters/pets', (req, res) => {
+    const { shelterId, petId } = req.query;
+    if (!shelterId || !petId)
+        return res.status(400).send('Missing pet ID and/or shelter ID.');
+
+    const pet = findPet(shelterId, petId);
+    if (!pet)
+        return res.status(404).send('Pet Not Found. Either shelter ID or pet ID is invalid.');
+    res.json(pet);
+});
+
+
+// API: one application's full details
+app.get('/admin/applications-details', (req, res) => {
+    if (!req.query.id)
+        return res.status(400).send('Application not Found. Missing ID.');
+
+    const app = applications.find(a => (a.applicationId === req.query.id));
+    if (!app)
+        return res.status(404).send('Application not Found. Invalid ID.');
+    res.json(app);
+});
+
+// API: update an application's status (JSON body: { applicationId, status })
+app.put('/admin/applications-update', (req, res) => {
+    const { applicationId, status } = req.body || {};
+    if (!applicationId || !status)
+        return res.status(400).send('Missing application ID and/or status.');
+
+    const app = applications.find(a => (a.applicationId === applicationId));
+    if (!app)
+        return res.status(404).send('Application not found. Invalid ID.');
+
+    app.status = status;
+    res.send('Application ' + applicationId + ' updated');
+});
+
+
 
 // Find and return the pet with the given Id from the given shelter Id
 function findPet(shelterId, petId) {
@@ -136,174 +173,7 @@ function findPet(shelterId, petId) {
         return undefined;
 }
 
-/*
-// Handle all incoming endpoint requests
-function handleRequest(req, res) {
-    const parsed = url.parse(req.url, true); // true parses query string
-    const pathname = parsed.pathname;
-    let query = parsed.query;
 
-    // Handle all incoming GET requests
-    if (req.method === 'GET') {
-        //console.log(">>> Method: " + req.method);
-        //console.log(">>> Pathname: " + pathname);
-
-        // Handle requests for the home page
-        if ((pathname === '/') || (pathname === '/home') || (pathname === '/index.html'))
-            return renderPage(res, 'index');
-
-        // Handle requests for the Browse Pets page
-        //shelters.map(...) builds a smaller array with only { id, name } per shelter.
-        // Pug doesn't need the full pet lists just to build the dropdown.
-        if (pathname === '/browse')
-            return renderPage(res, 'browse', {
-                shelters: shelters.map(shelter => ({ id: shelter.id, name: shelter.name })),
-                selectedShelterId: query.shelterId
-            });
-
-        // Handle requests for the About Us page
-        if (pathname === '/about')
-            return renderPage(res, 'about', aboutData);
-
-        // Handle requests for the Applications page (admin).
-        // Build a summary of each application (adding the pet's type) for the table rows.
-        if (pathname === '/admin/applications') {
-            const appSummaries = applications.map(app => {
-                const pet = findPet(app.shelterId, app.petId);
-                return {
-                    date: app.date,
-                    applicationId: app.applicationId,
-                    shelterId: app.shelterId,
-                    petId: app.petId,
-                    petType: pet ? pet.type : 'Unknown',
-                    status: app.status
-                };
-            });
-            return renderPage(res, 'applications', { applications: appSummaries });
-        }
-
-        // Handle requests for the pet details page 
-        // Both IDs are required; show an error message if either is missing or invalid.
-        if (pathname === '/details') {
-            if (!query.petId || !query.shelterId)
-                return renderPage(res, 'pet', { errorMessage: 'Missing pet ID and/or shelter ID.' }, 400);
-
-            const shelter = shelters.find(shelter => (shelter.id === query.shelterId));
-            const pet = findPet(query.shelterId, query.petId);
-            if (!pet)
-                return renderPage(res, 'pet', { errorMessage: 'Pet not found. Either the shelter ID or pet ID is invalid.' }, 404);
-
-            return renderPage(res, 'pet', { pet, shelter });
-        }
-
-        // Handle requests for the adoption application page.
-        // All the pet info arrives as query parameters from the pet details page's Apply link.
-        if (pathname === '/apply') {
-            // The const { ... } = query line is destructuring: it pulls 
-            // those 7 properties out of query into variables of the same names
-            const { petId, petName, petType, petBreed, adoptionFee, processingFee, shelterId } = query;
-            return renderPage(res, 'apply', { petId, petName, petType, petBreed, adoptionFee, processingFee, shelterId });
-        }
-
-        // Handle an API request for one pet's data
-        if (pathname === '/shelters/pets') {
-            if ((query.shelterId) && (query.petId)) {
-                const pet = findPet(query.shelterId, query.petId);
-                if (pet)
-                    return res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(pet));
-                else
-                    return res.writeHead(404).end('Pet Not Found. Either shelter ID or pet ID is invalid.');
-            }
-            else
-                return res.writeHead(404).end('Missing pet ID and/or shelter ID.');
-        }
-        // Handle an API request for basic shelter data (i.e., not the pet info)
-        if (pathname === '/shelters') {
-            if (query.id) { // Handle request for one shelter's data
-                const shelter = shelters.find(shelter => (shelter.id === query.id));
-                if (shelter)
-                    return res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(shelter));
-                else
-                    return res.writeHead(404).end('Shelter Not Found');
-            }
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify(shelters.map(shelter => ({ id: shelter.id, name: shelter.name, city: shelter.city, processingFee: shelter.processingFee }))));
-        }
-        // Handle an API request for one application's details
-        if (pathname === '/admin/applications-details') {
-            if (query.id) {
-                const app = applications.find(a => (a.applicationId === query.id));
-                if (app)
-                    return res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(app));
-                else
-                    return res.writeHead(404).end('Application not Found. Invalid ID.');
-            }
-            return res.writeHead(404).end('Application not Found. Missing ID.');
-        }
-
-
-        return serveStatic(path.join(__dirname, 'public', pathname), res);
-    }
-    // Handle incoming submitted application
-    if (req.method === 'POST' && pathname === '/submit-application') {
-        readRequestBody(req, (body) => {
-            try {
-                // Get the application and add it to the submitted applications
-                const application = JSON.parse(body);
-
-                // Add the current date/time, a unique ID and a status
-                application.date = new Date().toLocaleString('en-CA', {
-                    year: 'numeric', month: '2-digit', day: '2-digit',
-                    hour: '2-digit', minute: '2-digit'
-                });
-                application.applicationId = "a" + (applications.length + 1); // This is ok since we will never remove
-                application.status = "Unprocessed";
-                applications.push(application);
-
-                res.writeHead(200, { 'Content-Type': 'text/plain' });
-                return res.end('Application received');
-            } catch (e) {
-                console.error(e);
-                res.writeHead(400, { 'Content-Type': 'text/plain' });
-                return res.end('Invalid application data');
-            }
-        });
-        return;
-    }
-
-    // Handle incoming API request for an application status update
-    if (req.method === 'PUT' && pathname === '/admin/applications-update') {
-        readRequestBody(req, (body) => {
-            try {
-                // Get the application ID and its updated status from the request body
-                const { applicationId, status } = JSON.parse(body);
-                if (!applicationId || !status) {
-                    res.writeHead(400, { 'Content-Type': 'text/plain' });
-                    return res.end('Missing application ID and/or status.');
-                }
-
-                // Find the application with that ID
-                const app = applications.find(a => (a.applicationId === applicationId));
-                if (!app) {
-                    res.writeHead(404, { 'Content-Type': 'text/plain' });
-                    return res.end('Application not found. Invalid ID.');
-                }
-
-                app.status = status;
-                res.writeHead(200, { 'Content-Type': 'text/plain' });
-                return res.end("Application " + applicationId + " updated");
-            } catch (e) {
-                console.error(e);
-                res.writeHead(400, { 'Content-Type': 'text/plain' });
-                return res.end('Invalid application status update data');
-            }
-        });
-        return;
-    }
-    // Handle anything else as an error
-    res.writeHead(404).end('Not Found');
-}
-*/
 // Start the server
 app.listen(3000, () => {
     console.log('Adoption Company Server running on http://localhost:3000');

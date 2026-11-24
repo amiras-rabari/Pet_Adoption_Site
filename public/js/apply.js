@@ -1,26 +1,28 @@
 // Adoption Application page script.
 // The pet's information is already rendered by the server (apply.pug). This script only
-// enables the Submit button once both agreements are checked, and sends the application.
+// greys out the Submit button while the form is incomplete, and sends the application.
 
 const form = document.getElementById("adoptionForm");
 const submitBtn = document.getElementById("submitBtn");
-const agreement1 = document.getElementById("agreement1");
-const agreement2 = document.getElementById("agreement2");
 
 // The pet and shelter IDs were stored on the form by the server
 const petId = form.dataset.petId;
 const shelterId = form.dataset.shelterId;
 
-// Enable Submit button only when both checkboxes are checked
+// Grey out the Submit button (CSS class "incomplete") until every rule in the form passes
+// (all required fields filled in, residents >= 1, valid email, both agreements checked).
+// checkValidity() asks the browser to test all the required/pattern/min/type rules from apply.pug.
+// The button is NOT disabled: clicking it while incomplete lets the browser block the submit
+// and point the user to the first field that needs fixing.
 function updateSubmitState() {
-    submitBtn.disabled = !(agreement1.checked && agreement2.checked);
+    submitBtn.classList.toggle("incomplete", !form.checkValidity());
 }
-agreement1.addEventListener("change", updateSubmitState);
-agreement2.addEventListener("change", updateSubmitState);
+form.addEventListener("input", updateSubmitState);   // typing in text fields
+form.addEventListener("change", updateSubmitState);  // dropdowns and checkboxes
 updateSubmitState();
 
 
-// Handle form submission
+// Handle form submission (the browser only fires this once the form is valid)
 form.addEventListener("submit", (e) => {
     e.preventDefault();
 
