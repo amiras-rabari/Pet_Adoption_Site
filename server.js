@@ -410,6 +410,49 @@ app.delete('/admin/shelters/:sID/pets/:pID', (req, res) => {
     res.send('Pet "' + removedPet.name + '" was removed successfully.');
 });
 
+
+// Add a new pet to a shelter. Body: JSON, or multipart form data when an image file is included.
+// The server chooses the pet's ID and sets daysAtShelter to 1.
+app.post('/admin/shelters/:sID/pets', upload.single('image'), (req, res) => {
+    const shelter = shelters.find(shelter => (shelter.id === req.params.sID));
+    if (!shelter) {
+        discardUpload(req);
+        return res.status(404).send('Shelter not found. Invalid shelter ID.');
+    }
+    if (req.fileRejected)
+        return res.status(400).send('Only image files can be uploaded.');
+
+    const { error, pet: fields } = readPetFields(req.body);
+    if (error) {
+        discardUpload(req);
+        return res.status(400).send(error);
+    }
+
+    // Use (and then increase) the next pet ID stored in nextIDs.json
+    const newPet = {
+        id: 'p' + nextIDs.nextPetId,
+        name: fields.name,
+        type: fields.type,
+        breed: fields.breed,
+        age: fields.age,
+        health: fields.health,
+        traits: fields.traits,
+        // The uploaded image (saved by multer), or the default image if none was sent
+        image: req.file ? 'images/' + req.file.filename : 'images/unknownPet.jpg',
+        views: 0,
+        adoptionFee: fields.adoptionFee,
+        daysAtShelter: 1
+    };
+    nextIDs.nextPetId++;
+    saveNextIDs();
+
+    // Add it to the shelter and save the shelter's .json file
+    shelter.pets.push(newPet);
+    saveShelter(shelter);
+
+    res.status(201).json(newPet);
+});
+
 // Start the server
 app.listen(3000, () => {
     console.log('Adoption Company Server running on http://localhost:3000');

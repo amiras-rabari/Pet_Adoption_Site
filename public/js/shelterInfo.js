@@ -57,6 +57,10 @@ const petTraitsInput = document.getElementById("petTraitsInput");
 // It is remembered here so it can be sent to the server when saving.
 let chosenImageFile = null;
 
+// The Pet Details form has two modes: editing an existing pet, or adding a new one (New Pet)
+const savePetBtn = document.getElementById("savePetBtn");
+let addingNewPet = false;
+
 
 // ---------- List of Pets: selecting a row shows that pet's details ----------
 document.querySelectorAll(".pet-row").forEach(row => {
@@ -96,6 +100,10 @@ function showPetDetails(pet) {
     chosenImageFile = null;
     petImageFileInput.value = "";
 
+    // Editing an existing pet (the New Pet button may have switched the mode)
+    addingNewPet = false;
+    savePetBtn.textContent = "Save Changes";
+
     petDetailsSection.hidden = false;
 }
 
@@ -107,6 +115,23 @@ document.getElementById("cancelPetBtn").addEventListener("click", () => {
     document.querySelectorAll(".pet-row.selected").forEach(r => r.classList.remove("selected"));
     chosenImageFile = null;
     petImageFileInput.value = "";
+});
+
+
+// ---------- List of Pets: New Pet ----------
+// Shows an empty Pet Details section with the default image, ready to add a pet
+document.getElementById("newPetBtn").addEventListener("click", () => {
+    document.querySelectorAll(".pet-row.selected").forEach(r => r.classList.remove("selected"));
+
+    petForm.reset();   // empties every field in the form (including the file picker)
+    petImage.onload = null;
+    petImage.src = "/images/unknownPet.jpg";
+    petImageNameInput.value = "unknownPet.jpg";
+    chosenImageFile = null;
+
+    addingNewPet = true;
+    savePetBtn.textContent = "Add Pet";
+    petDetailsSection.hidden = false;
 });
 
 
@@ -150,6 +175,29 @@ petForm.addEventListener("submit", async (e) => {
         return;   // nothing is sent to the server
     }
 
+    // Add Pet (New Pet mode): POST /admin/shelters/:sID/pets
+    if (addingNewPet) {
+        // Include the image name (unknownPet.jpg unless a new image was chosen), but NOT the pet ID:
+        // the server chooses the new pet's ID
+        petData.imageName = petImageNameInput.value;
+        try {
+            const response = await fetch("/admin/shelters/" + shelterId + "/pets", {
+                method: "POST",
+                ...buildPetRequest(petData)
+            });
+            if (!response.ok)
+                throw new Error(await response.text());
+
+            const newPet = await response.json();
+            alert("Pet \"" + newPet.name + "\" was added successfully (ID: " + newPet.id + ").");
+            location.reload();   // the table shows the new pet, and Pet Details is hidden again
+        } catch (error) {
+            alert("Could not add the pet: " + error.message);
+        }
+        return;
+    }
+
+    // Save Changes (editing an existing pet): PUT /admin/shelters/:sID/pets/:pID
     try {
         const response = await fetch("/admin/shelters/" + shelterId + "/pets/" + petIdInput.value, {
             method: "PUT",
