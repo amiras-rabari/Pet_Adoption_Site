@@ -1,0 +1,93 @@
+//- Shelter Information page (admin)
+//- Rendered with: shelter ({ id, name, city, processingFee, pets: [...] }) and petTypes (the 5 pet types)
+- const title = "Shelter Info - New Home Animal Rescue"
+- const cssFile = "shelterInfo.css"
+- const activePage = "shelters"
+- const scriptFile = "shelterInfo.js"
+include partials/header
+	main.shelter-info-main
+		a.back-link(href="/admin/shelters") &larr; Back to Shelters
+		h1= shelter.name
+
+		//- Section 1: Shelter Information (every value is editable)
+		section#shelterInfoSection.info-card
+			h2 Shelter Information
+			form#shelterForm(data-shelter-id=shelter.id)
+				.field-grid
+					label(for="shelterIdInput") ID
+					input#shelterIdInput(type="text" value=shelter.id)
+					label(for="shelterNameInput") Name
+					input#shelterNameInput(type="text" value=shelter.name)
+					label(for="shelterCityInput") City
+					input#shelterCityInput(type="text" value=shelter.city)
+					label(for="shelterFeeInput") Processing Fee ($)
+					input#shelterFeeInput(type="number" min="0" value=shelter.processingFee)
+				.form-buttons
+					button#saveShelterBtn(type="submit") Save Changes
+
+		//- Section 2: List of Pets (scrollable table, one row per pet)
+		section#petListSection.info-card
+			h2 List of Pets
+			.table-scroll
+				table.pet-table
+					thead
+						tr
+							th ID
+							th Name
+							th Type
+							th Adoption Fee
+							th Days at Shelter
+							th Remove
+					tbody
+						each pet in shelter.pets
+							tr.pet-row(data-pet-id=pet.id data-pet=JSON.stringify(pet))
+								td= pet.id
+								td= pet.name
+								td= pet.type
+								td $#{pet.adoptionFee}
+								td= pet.daysAtShelter
+								td
+									button.remove-btn(type="button" data-pet-id=pet.id data-pet-name=pet.name title="Remove " + pet.name)
+										img(src="/images/remove.svg" alt="Remove")
+						else
+							tr
+								td(colspan="6") This shelter has no pets yet.
+			.form-buttons
+				button#newPetBtn(type="button") New Pet
+
+		//- Section 3: Pet Details (hidden until a pet row or New Pet is clicked)
+		section#petDetailsSection.info-card(hidden)
+			h2 Pet Details
+			form#petForm.pet-details
+				//- Left side: the pet's image, its file name and a button to choose a new one
+				.pet-image-area
+					img#petImage.pet-image(src="/images/unknownPet.jpg" alt="Pet image")
+					input#petImageName(type="text" readonly aria-label="Image file name")
+					//- A label linked to a hidden file input: clicking the label opens the file picker
+					label.file-btn(for="petImageFile") Choose New Image
+					input#petImageFile(type="file" accept="image/*" hidden)
+				//- Right side: the pet's data
+				.field-grid
+					label(for="petIdInput") ID
+					input#petIdInput(type="text" readonly)
+					label(for="petTypeInput") Type
+					select#petTypeInput
+						option(value="") -- Select --
+						each type in petTypes
+							option(value=type)= type
+					label(for="petNameInput") Name
+					input#petNameInput(type="text")
+					label(for="petBreedInput") Breed
+					input#petBreedInput(type="text")
+					label(for="petAgeInput") Age
+					input#petAgeInput(type="number" min="0")
+					label(for="petFeeInput") Adoption Fee ($)
+					input#petFeeInput(type="number" min="0")
+					label(for="petHealthInput") Health
+					textarea#petHealthInput(rows="3")
+					label(for="petTraitsInput") Traits
+					input#petTraitsInput(type="text" placeholder="e.g. Friendly, Energetic, Good with kids")
+				.form-buttons
+					button#savePetBtn(type="submit") Save Changes
+					button#cancelPetBtn.secondary-btn(type="button") Cancel
+	include partials/footer

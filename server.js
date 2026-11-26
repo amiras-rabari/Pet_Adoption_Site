@@ -3,6 +3,7 @@ const path = require('path');
 
 const express = require('express');
 const app = express();
+const multer = require('multer');
 
 // Submitted applications
 let applications = []; // None so far
@@ -51,6 +52,67 @@ function findPet(shelterId, petId) {
 
 // Load the About Us page data (mission, teamDescription, team) once upon startup
 const aboutData = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'aboutData.json'), 'utf-8'));
+
+
+// The 5 pet types used throughout the site 
+const PET_TYPES = ['Dog', 'Cat', 'Bird', 'Reptile', 'Other'];
+
+// ---------- Image uploads (multer) ----------
+// Where uploaded pet images are saved: public/images (served like the other pet images)
+const IMAGES_DIR = path.join(__dirname, 'public', 'images');
+
+// storage: save to public/images, adding the date/time to the name so it is always unique
+// (e.g. "my dog.png" -> "my_dog-1732467890123.png")
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, IMAGES_DIR),
+    filename: (req, file, cb) => {
+        const extension = path.extname(file.originalname).toLowerCase();
+        const baseName = path.basename(file.originalname, path.extname(file.originalname))
+            .replace(/[^a-zA-Z0-9_-]/g, '_');   // keep only safe characters
+        cb(null, baseName + '-' + Date.now() + extension);
+    }
+});
+
+// fileFilter: only accept image files. A rejected file is not saved, and the route sends a 400.
+function fileFilter(req, file, cb) {
+    if (file.mimetype.startsWith('image/'))
+        return cb(null, true);
+    req.fileRejected = true;
+    cb(null, false);
+}
+
+const upload = multer({ storage: storage, fileFilter: fileFilter });
+
+// If a request is rejected after multer already saved its image, delete that image again
+function discardUpload(req) {
+    if (req.file)
+        fs.rmSync(req.file.path, { force: true });
+}
+
+// Read and check a pet's fields from a request body (JSON or multipart form).
+// Returns { error } if something is missing or invalid, otherwise { pet } with the cleaned values.
+function readPetFields(body) {
+    body = body || {};
+    const type = String(body.type ?? '').trim();
+    const name = String(body.name ?? '').trim();
+    const breed = String(body.breed ?? '').trim();
+    const ageText = String(body.age ?? '').trim();
+    const feeText = String(body.adoptionFee ?? '').trim();
+    const health = String(body.health ?? '').trim();
+    // Traits arrive as "Friendly, Energetic" -> ["Friendly", "Energetic"]
+    const traits = String(body.traits ?? '').split(',').map(t => t.trim()).filter(t => t !== '');
+    const age = Number(ageText);
+    const adoptionFee = Number(feeText);
+
+    if (!name || !breed || !health || !ageText || !feeText || traits.length === 0)
+        return { error: 'All pet fields are required (type, name, breed, age, adoption fee, health, traits).' };
+    if (!PET_TYPES.includes(type))
+        return { error: 'The type must be one of: ' + PET_TYPES.join(', ') + '.' };
+    if (!Number.isFinite(age) || age < 0 || !Number.isFinite(adoptionFee) || adoptionFee < 0)
+        return { error: 'The age and adoption fee must be numbers (0 or more).' };
+
+    return { pet: { type, name, breed, age, adoptionFee, health, traits } };
+}
 
 // ---------- Express setup ----------
 // Tell Express to render .pug files from the views folder
@@ -254,6 +316,98 @@ app.delete('/admin/shelters/:sID', (req, res) => {
     // Remove it from the shelters array
     const removedShelter = shelters.splice(index, 1)[0];
     res.send('Shelter "' + removedShelter.name + '" was deleted successfully.');
+});
+
+// One shelter: its Shelter Info page (HTML) or its full data including pets (JSON)
+app.get('/admin/shelters/:sID', (req, res) => {
+    const shelter = shelters.find(shelter => (shelter.id === req.params.sID));
+    if (!shelter)
+        return res.status(404).send('Shelter not found. Invalid shelter ID.');
+
+    res.format({
+        'text/html': () => res.render('shelterInfo', { shelter: shelter, petTypes: PET_TYPES }),
+        'application/json': () => res.json(shelter),
+        default: () => res.status(406).send('Not Acceptable. Request text/html or application/json.')
+    });
+});
+
+// Update a shelter's info. JSON body: { id, name, city, processingFee }
+// :sID is the shelter's CURRENT id; body.id may be a new one.
+app.put('/admin/shelters/:sID', (req, res) => {
+    const shelter = shelters.find(shelter => (shelter.id === req.params.sID));
+    if (!shelter)
+        return res.status(404).send('Shelter not found. Invalid shelter ID.');
+
+    // Same checks as when adding a shelter, plus the ID
+    const body = req.body || {};
+    const newId = String(body.id ?? '').trim();
+    const name = String(body.name ?? '').trim();
+    const city = String(body.city ?? '').trim();
+    const feeText = String(body.processingFee ?? '').trim();
+    const fee = Number(feeText);
+
+    if (!newId || !name || !city || !feeText || !Number.isFinite(fee) || fee < 0)
+        return res.status(400).send('An ID, name, city and processing fee (0 or more) are required.');
+
+    // A changed ID must not belong to another shelter (IDs must stay unique)
+    if (newId !== shelter.id && shelters.some(s => (s.id === newId)))
+        return res.status(409).send('The ID "' + newId + '" is already used by another shelter.');
+
+    // The shelter keeps its .json file; only the ID used to look the file up changes
+    if (newId !== shelter.id) {
+        shelterFiles[newId] = shelterFiles[shelter.id];
+        delete shelterFiles[shelter.id];
+    }
+
+    shelter.id = newId;
+    shelter.name = name;
+    shelter.city = city;
+    shelter.processingFee = fee;
+    saveShelter(shelter);
+
+    res.json(shelter);
+});
+
+
+// Update one pet. Body: JSON, or multipart form data when a new image file is included.
+// upload.single('image') saves an uploaded "image" file if any and sets req.file;
+// for a JSON request it does nothing and express.json() has already filled req.body.
+app.put('/admin/shelters/:sID/pets/:pID', upload.single('image'), (req, res) => {
+    const shelter = shelters.find(shelter => (shelter.id === req.params.sID));
+    const pet = shelter ? shelter.pets.find(pet => (pet.id === req.params.pID)) : undefined;
+    if (!pet) {
+        discardUpload(req);
+        return res.status(404).send('Pet not found. Either the shelter ID or pet ID is invalid.');
+    }
+    if (req.fileRejected)
+        return res.status(400).send('Only image files can be uploaded.');
+
+    const { error, pet: fields } = readPetFields(req.body);
+    if (error) {
+        discardUpload(req);
+        return res.status(400).send(error);
+    }
+
+    // Copy the new values onto the pet (its id, views and daysAtShelter stay the same)
+    Object.assign(pet, fields);
+    if (req.file)
+        pet.image = 'images/' + req.file.filename;   // same format as the existing images
+    saveShelter(shelter);
+
+    res.json(pet);
+});
+
+// Delete one pet from a shelter
+app.delete('/admin/shelters/:sID/pets/:pID', (req, res) => {
+    const shelter = shelters.find(shelter => (shelter.id === req.params.sID));
+    const index = shelter ? shelter.pets.findIndex(pet => (pet.id === req.params.pID)) : -1;
+    if (index === -1)
+        return res.status(404).send('Pet not found. Either the shelter ID or pet ID is invalid.');
+
+    const removedPet = shelter.pets.splice(index, 1)[0];
+    saveShelter(shelter);
+
+    res.send('Pet "' + removedPet.name + '" was removed successfully.');
 });
 
 // Start the server
