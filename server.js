@@ -171,6 +171,10 @@ app.get('/details', (req, res) => {
         return res.status(404).render('pet', { errorMessage: 'Pet not found. Either the shelter ID or pet ID is invalid.' });
     }
 
+    // Count this visit and save it, so the count survives a server restart
+    pet.views = (pet.views || 0) + 1;
+    saveShelter(shelter);
+
     res.render('pet', { pet, shelter });
 });
 
